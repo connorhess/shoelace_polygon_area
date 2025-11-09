@@ -18,7 +18,7 @@ References:
     - https://en.wikipedia.org/wiki/Shoelace_formula
 """
 
-from typing import List, Tuple, Union
+from typing import List, Tuple, Union, Optional
 
 
 def validate_polygon(vertices: List[Tuple[Union[int, float], Union[int, float]]]) -> None:
@@ -241,3 +241,185 @@ def calculate_polygon_area_with_info(
         'perimeter': perimeter,
         'centroid': (centroid_x, centroid_y)
     }
+
+
+def parse_gps_coordinates(
+    gps_string: str,
+    coordinate_format: str = "lat_long_alt_accuracy"
+) -> List[Tuple[float, float]]:
+    """
+    Parse GPS coordinates from a shapefile-like string format.
+    
+    This function parses GPS coordinate strings in various formats and extracts
+    the latitude and longitude values to create a list of (x, y) tuples suitable
+    for polygon area calculation.
+    
+    Args:
+        gps_string: A string containing GPS coordinates separated by semicolons.
+                   Each coordinate set should contain space-separated values.
+                   Format: "lat long alt accuracy; lat long alt accuracy; ..."
+                   Example: "1.323123 2.21312 0.0 0.0; 1.5 2.5 0.0 0.0"
+        coordinate_format: The format of each coordinate set. Options:
+                          - "lat_long_alt_accuracy": lat, long, altitude, accuracy (default)
+                          - "lat_long": only latitude and longitude
+                          - "long_lat": longitude, latitude (reversed)
+                          
+    Returns:
+        List[Tuple[float, float]]: A list of (longitude, latitude) tuples that can be
+                                   used with calculate_polygon_area(). Note that the
+                                   return format is (longitude, latitude) which corresponds
+                                   to (x, y) in standard Cartesian coordinates.
+                                   
+    Raises:
+        ValueError: If the GPS string is empty, invalid, or coordinates cannot be parsed
+        
+    Examples:
+        >>> # Standard format with altitude and accuracy
+        >>> gps_str = "1.0 2.0 0.0 0.0; 1.0 3.0 0.0 0.0; 2.0 3.0 0.0 0.0"
+        >>> coords = parse_gps_coordinates(gps_str)
+        >>> coords
+        [(2.0, 1.0), (3.0, 1.0), (3.0, 2.0)]
+        
+        >>> # Calculate area from GPS coordinates
+        >>> area = calculate_polygon_area(coords)
+        >>> area
+        1.0
+        
+        >>> # Format with only lat/long
+        >>> gps_str = "1.0 2.0; 1.0 3.0; 2.0 3.0"
+        >>> coords = parse_gps_coordinates(gps_str, coordinate_format="lat_long")
+        >>> coords
+        [(2.0, 1.0), (3.0, 1.0), (3.0, 2.0)]
+    
+    Note:
+        - GPS coordinates are typically given as (latitude, longitude), but for
+          area calculations we treat longitude as x and latitude as y
+        - Altitude and accuracy values are ignored for area calculations
+        - Empty or whitespace-only coordinate sets are skipped
+        - The function is flexible and handles various spacing and formatting
+    """
+    # Validate input
+    if not isinstance(gps_string, str):
+        raise TypeError(
+            f"GPS string must be a string, got {type(gps_string).__name__}"
+        )
+    
+    if not gps_string or not gps_string.strip():
+        raise ValueError("GPS coordinate string cannot be empty")
+    
+    # Split by semicolons to get individual coordinate sets
+    coordinate_sets = gps_string.split(';')
+    
+    # Parse each coordinate set
+    vertices = []
+    for i, coord_set in enumerate(coordinate_sets):
+        # Skip empty or whitespace-only sets
+        coord_set = coord_set.strip()
+        if not coord_set:
+            continue
+        
+        # Split by whitespace to get individual values
+        values = coord_set.split()
+        
+        # Parse based on format
+        try:
+            if coordinate_format == "lat_long_alt_accuracy":
+                if len(values) < 2:
+                    raise ValueError(
+                        f"Coordinate set {i} must have at least 2 values (lat, long), "
+                        f"got {len(values)} values"
+                    )
+                # Extract lat and long (first two values)
+                lat = float(values[0])
+                long = float(values[1])
+                # Note: For polygon area, we use (longitude, latitude) as (x, y)
+                vertices.append((long, lat))
+                
+            elif coordinate_format == "lat_long":
+                if len(values) != 2:
+                    raise ValueError(
+                        f"Coordinate set {i} must have exactly 2 values (lat, long), "
+                        f"got {len(values)} values"
+                    )
+                lat = float(values[0])
+                long = float(values[1])
+                vertices.append((long, lat))
+                
+            elif coordinate_format == "long_lat":
+                if len(values) != 2:
+                    raise ValueError(
+                        f"Coordinate set {i} must have exactly 2 values (long, lat), "
+                        f"got {len(values)} values"
+                    )
+                long = float(values[0])
+                lat = float(values[1])
+                vertices.append((long, lat))
+                
+            else:
+                raise ValueError(
+                    f"Unknown coordinate format: {coordinate_format}. "
+                    f"Supported formats: 'lat_long_alt_accuracy', 'lat_long', 'long_lat'"
+                )
+                
+        except ValueError as e:
+            if "could not convert" in str(e):
+                raise ValueError(
+                    f"Coordinate set {i} contains non-numeric values: '{coord_set}'"
+                ) from e
+            raise
+    
+    # Validate that we got at least 3 vertices for a polygon
+    if len(vertices) < 3:
+        raise ValueError(
+            f"Parsed coordinates must form a polygon with at least 3 vertices. "
+            f"Got {len(vertices)} vertices from GPS string."
+        )
+    
+    return vertices
+
+
+def calculate_polygon_area_from_gps(
+    gps_string: str,
+    coordinate_format: str = "lat_long_alt_accuracy"
+) -> float:
+    """
+    Calculate the area of a polygon defined by GPS coordinates.
+    
+    This is a convenience function that combines parse_gps_coordinates() and
+    calculate_polygon_area() to directly calculate the area from a GPS string.
+    
+    Args:
+        gps_string: A string containing GPS coordinates separated by semicolons.
+                   Format: "lat long alt accuracy; lat long alt accuracy; ..."
+                   Example: "1.323123 2.21312 0.0 0.0; 1.5 2.5 0.0 0.0"
+        coordinate_format: The format of each coordinate set. Options:
+                          - "lat_long_alt_accuracy": lat, long, altitude, accuracy (default)
+                          - "lat_long": only latitude and longitude
+                          - "long_lat": longitude, latitude (reversed)
+                          
+    Returns:
+        float: The area of the polygon defined by the GPS coordinates
+        
+    Raises:
+        ValueError: If the GPS string is invalid or doesn't define a valid polygon
+        
+    Examples:
+        >>> # Calculate area from GPS coordinates with altitude and accuracy
+        >>> gps_str = "0.0 0.0 0.0 0.0; 0.0 4.0 0.0 0.0; 3.0 0.0 0.0 0.0"
+        >>> area = calculate_polygon_area_from_gps(gps_str)
+        >>> area
+        6.0
+        
+        >>> # With only lat/long
+        >>> gps_str = "1.323123 2.21312; 1.5 2.5; 2.0 3.0"
+        >>> area = calculate_polygon_area_from_gps(gps_str, coordinate_format="lat_long")
+        
+    Note:
+        - This function assumes GPS coordinates are in decimal degrees
+        - For accurate area calculations in real-world applications, consider
+          projecting GPS coordinates to a suitable coordinate system
+        - The area returned is in square degrees, which may not represent
+          actual ground area accurately (use appropriate conversions for that)
+    """
+    vertices = parse_gps_coordinates(gps_string, coordinate_format)
+    return calculate_polygon_area(vertices)

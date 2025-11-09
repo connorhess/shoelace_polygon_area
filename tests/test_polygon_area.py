@@ -10,7 +10,12 @@ This module contains tests for:
 """
 
 import pytest
-from shoelace_polygon_area import calculate_polygon_area, validate_polygon
+from shoelace_polygon_area import (
+    calculate_polygon_area,
+    validate_polygon,
+    parse_gps_coordinates,
+    calculate_polygon_area_from_gps
+)
 from shoelace_polygon_area.polygon_area import calculate_polygon_area_with_info
 
 
@@ -314,3 +319,145 @@ class TestDocumentation:
         """Test that the module has a docstring."""
         import shoelace_polygon_area
         assert shoelace_polygon_area.__doc__ is not None
+
+
+class TestGPSCoordinateParsing:
+    """Test GPS coordinate parsing functionality."""
+    
+    def test_parse_basic_gps_coordinates(self):
+        """Test parsing GPS coordinates in lat long alt accuracy format."""
+        gps_str = "1.0 2.0 0.0 0.0; 1.0 3.0 0.0 0.0; 2.0 3.0 0.0 0.0"
+        coords = parse_gps_coordinates(gps_str)
+        expected = [(2.0, 1.0), (3.0, 1.0), (3.0, 2.0)]
+        assert coords == expected
+    
+    def test_parse_gps_with_decimals(self):
+        """Test parsing GPS coordinates with decimal values."""
+        gps_str = "1.323123 2.21312 0.0 0.0; 1.5 2.5 0.0 0.0; 2.0 3.0 0.0 0.0"
+        coords = parse_gps_coordinates(gps_str)
+        assert len(coords) == 3
+        assert coords[0] == (2.21312, 1.323123)
+        assert coords[1] == (2.5, 1.5)
+        assert coords[2] == (3.0, 2.0)
+    
+    def test_parse_gps_lat_long_format(self):
+        """Test parsing GPS coordinates in lat long format (no altitude/accuracy)."""
+        gps_str = "1.0 2.0; 1.0 3.0; 2.0 3.0"
+        coords = parse_gps_coordinates(gps_str, coordinate_format="lat_long")
+        expected = [(2.0, 1.0), (3.0, 1.0), (3.0, 2.0)]
+        assert coords == expected
+    
+    def test_parse_gps_long_lat_format(self):
+        """Test parsing GPS coordinates in long lat format (reversed)."""
+        gps_str = "2.0 1.0; 3.0 1.0; 3.0 2.0"
+        coords = parse_gps_coordinates(gps_str, coordinate_format="long_lat")
+        expected = [(2.0, 1.0), (3.0, 1.0), (3.0, 2.0)]
+        assert coords == expected
+    
+    def test_parse_gps_with_extra_spaces(self):
+        """Test that extra spaces are handled correctly."""
+        gps_str = "  1.0   2.0   0.0   0.0  ;  1.0   3.0   0.0   0.0  ;  2.0   3.0   0.0   0.0  "
+        coords = parse_gps_coordinates(gps_str)
+        expected = [(2.0, 1.0), (3.0, 1.0), (3.0, 2.0)]
+        assert coords == expected
+    
+    def test_parse_gps_with_trailing_semicolon(self):
+        """Test that trailing semicolons are handled correctly."""
+        gps_str = "1.0 2.0 0.0 0.0; 1.0 3.0 0.0 0.0; 2.0 3.0 0.0 0.0;"
+        coords = parse_gps_coordinates(gps_str)
+        expected = [(2.0, 1.0), (3.0, 1.0), (3.0, 2.0)]
+        assert coords == expected
+    
+    def test_parse_gps_negative_coordinates(self):
+        """Test parsing GPS coordinates with negative values."""
+        gps_str = "-1.0 -2.0 0.0 0.0; -1.0 2.0 0.0 0.0; 2.0 2.0 0.0 0.0"
+        coords = parse_gps_coordinates(gps_str)
+        assert len(coords) == 3
+        assert coords[0] == (-2.0, -1.0)
+    
+    def test_parse_gps_empty_string(self):
+        """Test that empty GPS string raises ValueError."""
+        with pytest.raises(ValueError, match="cannot be empty"):
+            parse_gps_coordinates("")
+    
+    def test_parse_gps_whitespace_only(self):
+        """Test that whitespace-only GPS string raises ValueError."""
+        with pytest.raises(ValueError, match="cannot be empty"):
+            parse_gps_coordinates("   ")
+    
+    def test_parse_gps_non_string_input(self):
+        """Test that non-string input raises TypeError."""
+        with pytest.raises(TypeError, match="must be a string"):
+            parse_gps_coordinates(123)
+    
+    def test_parse_gps_too_few_vertices(self):
+        """Test that fewer than 3 coordinates raises ValueError."""
+        gps_str = "1.0 2.0 0.0 0.0; 1.0 3.0 0.0 0.0"
+        with pytest.raises(ValueError, match="at least 3 vertices"):
+            parse_gps_coordinates(gps_str)
+    
+    def test_parse_gps_invalid_coordinate_values(self):
+        """Test that non-numeric coordinate values raise ValueError."""
+        gps_str = "1.0 2.0 0.0 0.0; abc def 0.0 0.0; 2.0 3.0 0.0 0.0"
+        with pytest.raises(ValueError, match="non-numeric values"):
+            parse_gps_coordinates(gps_str)
+    
+    def test_parse_gps_insufficient_values_per_coordinate(self):
+        """Test that insufficient values in a coordinate set raises ValueError."""
+        gps_str = "1.0 2.0 0.0 0.0; 1.0; 2.0 3.0 0.0 0.0"
+        with pytest.raises(ValueError, match="at least 2 values"):
+            parse_gps_coordinates(gps_str)
+    
+    def test_parse_gps_unknown_format(self):
+        """Test that unknown coordinate format raises ValueError."""
+        gps_str = "1.0 2.0 0.0 0.0; 1.0 3.0 0.0 0.0; 2.0 3.0 0.0 0.0"
+        with pytest.raises(ValueError, match="Unknown coordinate format"):
+            parse_gps_coordinates(gps_str, coordinate_format="invalid_format")
+
+
+class TestCalculatePolygonAreaFromGPS:
+    """Test calculating polygon area directly from GPS coordinates."""
+    
+    def test_calculate_area_from_gps_basic(self):
+        """Test calculating area from GPS coordinates."""
+        # Triangle with known area
+        gps_str = "0.0 0.0 0.0 0.0; 0.0 4.0 0.0 0.0; 3.0 0.0 0.0 0.0"
+        area = calculate_polygon_area_from_gps(gps_str)
+        assert area == 6.0
+    
+    def test_calculate_area_from_gps_square(self):
+        """Test calculating area of a square from GPS coordinates."""
+        gps_str = "0.0 0.0 0.0 0.0; 0.0 5.0 0.0 0.0; 5.0 5.0 0.0 0.0; 5.0 0.0 0.0 0.0"
+        area = calculate_polygon_area_from_gps(gps_str)
+        assert area == 25.0
+    
+    def test_calculate_area_from_gps_lat_long_format(self):
+        """Test calculating area with lat long format."""
+        gps_str = "0.0 0.0; 0.0 4.0; 3.0 0.0"
+        area = calculate_polygon_area_from_gps(gps_str, coordinate_format="lat_long")
+        assert area == 6.0
+    
+    def test_calculate_area_from_gps_real_coordinates(self):
+        """Test with realistic GPS coordinate values."""
+        # Small plot near equator (simplified for testing)
+        # This creates a rectangle: 0.001 degrees lat x 0.001 degrees long
+        gps_str = "40.7128 -74.0060 0.0 0.0; 40.7138 -74.0060 0.0 0.0; 40.7138 -74.0050 0.0 0.0; 40.7128 -74.0050 0.0 0.0"
+        area = calculate_polygon_area_from_gps(gps_str)
+        # Area in square degrees: approximately 0.001 * 0.001 = 0.000001 = 1e-6
+        assert area == pytest.approx(1e-6, rel=1e-6)
+    
+    def test_calculate_area_from_gps_invalid_input(self):
+        """Test that invalid GPS string raises appropriate error."""
+        with pytest.raises(ValueError):
+            calculate_polygon_area_from_gps("invalid")
+    
+    def test_calculate_area_from_gps_preserves_altitude_accuracy(self):
+        """Test that altitude and accuracy values don't affect the area calculation."""
+        # Same coordinates with different altitude and accuracy
+        gps_str1 = "0.0 0.0 0.0 0.0; 0.0 4.0 0.0 0.0; 3.0 0.0 0.0 0.0"
+        gps_str2 = "0.0 0.0 100.0 5.0; 0.0 4.0 200.0 10.0; 3.0 0.0 150.0 8.0"
+        
+        area1 = calculate_polygon_area_from_gps(gps_str1)
+        area2 = calculate_polygon_area_from_gps(gps_str2)
+        
+        assert area1 == area2 == 6.0
