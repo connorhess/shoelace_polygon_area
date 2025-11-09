@@ -9,11 +9,12 @@ The Shoelace formula is a mathematical algorithm to determine the area of a simp
 ## Features
 
 - ✅ **Simple API**: Easy-to-use function for calculating polygon areas
+- ✅ **GPS Coordinate Support**: Parse GPS coordinates in shapefile format
 - ✅ **Well-documented**: Extensive comments and docstrings explaining each step
 - ✅ **Robust validation**: Comprehensive input validation with clear error messages
 - ✅ **Flexible input**: Works with any numeric coordinates (int or float)
 - ✅ **Order-independent**: Handles both clockwise and counter-clockwise vertex ordering
-- ✅ **Thoroughly tested**: Comprehensive test suite with 40+ test cases
+- ✅ **Thoroughly tested**: Comprehensive test suite with 58+ test cases
 - ✅ **Type hints**: Full type annotations for better IDE support
 - ✅ **Additional features**: Extra function providing polygon perimeter and centroid
 
@@ -94,6 +95,50 @@ print(f"Vertices: {info['vertices_count']}")  # Output: 4
 print(f"Perimeter: {info['perimeter']}")    # Output: 14.0
 print(f"Centroid: {info['centroid']}")      # Output: (2.0, 1.5)
 ```
+
+### Working with GPS Coordinates
+
+The module supports GPS coordinates in shapefile format, making it easy to calculate areas from GPS data:
+
+```python
+from shoelace_polygon_area import (
+    parse_gps_coordinates,
+    calculate_polygon_area_from_gps
+)
+
+# GPS coordinates in format: lat long alt accuracy
+gps_string = "1.323123 2.21312 0.0 0.0; 1.5 2.5 0.0 0.0; 2.0 3.0 0.0 0.0"
+
+# Method 1: Parse and then calculate
+coords = parse_gps_coordinates(gps_string)
+area = calculate_polygon_area(coords)
+
+# Method 2: Calculate directly from GPS string
+area = calculate_polygon_area_from_gps(gps_string)
+print(f"Area: {area} square degrees")
+
+# Simplified format (lat long only)
+simple_gps = "0.0 0.0; 0.0 4.0; 3.0 0.0"
+area = calculate_polygon_area_from_gps(simple_gps, coordinate_format="lat_long")
+print(f"Area: {area} square degrees")
+
+# Real-world example: Plot of land
+plot_gps = (
+    "40.7128 -74.0060 10.5 0.5; "
+    "40.7138 -74.0060 10.2 0.5; "
+    "40.7138 -74.0050 10.8 0.5; "
+    "40.7128 -74.0050 11.0 0.5"
+)
+area = calculate_polygon_area_from_gps(plot_gps)
+print(f"Plot area: {area} square degrees")
+```
+
+**Supported GPS Formats:**
+- `"lat_long_alt_accuracy"`: Latitude, Longitude, Altitude, Accuracy (default)
+- `"lat_long"`: Latitude, Longitude only
+- `"long_lat"`: Longitude, Latitude (reversed)
+
+**Note:** GPS coordinates are given in decimal degrees. For accurate ground area measurements, consider using appropriate coordinate projection systems that account for Earth's curvature. The area returned is in square degrees.
 
 ### Input Validation
 
@@ -180,15 +225,49 @@ Calculate polygon area and return additional information.
   - `perimeter`: The perimeter of the polygon
   - `centroid`: The centroid (center of mass) as (x, y) tuple
 
+### `parse_gps_coordinates(gps_string, coordinate_format="lat_long_alt_accuracy")`
+
+Parse GPS coordinates from a shapefile-like string format.
+
+**Parameters:**
+- `gps_string` (str): A string containing GPS coordinates separated by semicolons. Format: `"lat long alt accuracy; lat long alt accuracy; ..."`
+- `coordinate_format` (str): The format of each coordinate set. Options:
+  - `"lat_long_alt_accuracy"`: Latitude, Longitude, Altitude, Accuracy (default)
+  - `"lat_long"`: Latitude and Longitude only
+  - `"long_lat"`: Longitude and Latitude (reversed order)
+
+**Returns:**
+- `List[Tuple[float, float]]`: A list of (longitude, latitude) tuples that can be used with `calculate_polygon_area()`
+
+**Raises:**
+- `ValueError`: If the GPS string is invalid or doesn't define a valid polygon
+- `TypeError`: If the input types are incorrect
+
+### `calculate_polygon_area_from_gps(gps_string, coordinate_format="lat_long_alt_accuracy")`
+
+Calculate the area of a polygon directly from GPS coordinates.
+
+**Parameters:**
+- `gps_string` (str): A string containing GPS coordinates separated by semicolons
+- `coordinate_format` (str): The format of each coordinate set (see `parse_gps_coordinates`)
+
+**Returns:**
+- `float`: The area of the polygon in square degrees
+
+**Raises:**
+- `ValueError`: If the GPS string is invalid or doesn't define a valid polygon
+
 ## Testing
 
-The module includes a comprehensive test suite with 40+ test cases covering:
+The module includes a comprehensive test suite with 58+ test cases covering:
 
 - Basic shapes (triangles, squares, rectangles)
 - Complex polygons (pentagons, hexagons, irregular shapes)
 - Vertex ordering (clockwise vs counter-clockwise)
 - Floating-point coordinates
 - Negative coordinates
+- GPS coordinate parsing and validation
+- Multiple GPS coordinate formats
 - Input validation and error handling
 - Edge cases (collinear points, very small/large coordinates)
 - Integration tests
@@ -224,6 +303,9 @@ shoelace_polygon_area/
 ├── tests/                      # Test suite
 │   ├── __init__.py
 │   └── test_polygon_area.py    # Comprehensive test cases
+├── gps_example.py              # GPS coordinate usage examples
+├── examples.py                 # Basic usage examples
+├── demo.py                     # Demonstration script
 ├── pyproject.toml              # Modern Python project configuration
 ├── requirements-dev.txt        # Development dependencies
 ├── README.md                   # This file
@@ -291,6 +373,21 @@ area = calculate_polygon_area(vertices)  # 7.0
 plot = [(0, 0), (50, 0), (60, 30), (40, 50), (0, 45)]
 area_sq_meters = calculate_polygon_area(plot)
 print(f"Land area: {area_sq_meters} square meters")
+```
+
+### GPS Coordinate Example
+```python
+from shoelace_polygon_area import calculate_polygon_area_from_gps
+
+# Plot with GPS coordinates (lat long alt accuracy format)
+gps_plot = (
+    "40.7128 -74.0060 10.5 0.5; "
+    "40.7138 -74.0060 10.2 0.5; "
+    "40.7138 -74.0050 10.8 0.5; "
+    "40.7128 -74.0050 11.0 0.5"
+)
+area = calculate_polygon_area_from_gps(gps_plot)
+print(f"Plot area: {area} square degrees")
 ```
 
 ## Support
