@@ -19,7 +19,18 @@ Example:
 __version__ = "1.0.0"
 
 # Import main functions to make them available at package level
-from .polygon_area import calculate_polygon_area, validate_polygon
+from .polygon_area import (
+    calculate_polygon_area,
+    validate_polygon,
+    parse_gps_coordinates,
+    calculate_polygon_area_from_gps
+)
 
 # Define what should be imported with "from shoelace_polygon_area import *"
-__all__ = ['calculate_polygon_area', 'validate_polygon', '__version__']
+__all__ = [
+    'calculate_polygon_area',
+    'validate_polygon',
+    'parse_gps_coordinates',
+    'calculate_polygon_area_from_gps',
+    '__version__'
+]
